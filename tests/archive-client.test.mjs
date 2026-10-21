@@ -38,3 +38,19 @@ test('completed ranges do not wait for upstream stream cancellation',{timeout:20
  const stream=new ReadableStream({start(c){c.enqueue(new Uint8Array([0,1,2,3,4,5]))},cancel(){return new Promise(()=>{})}});
  const r=sliceResponse(new Response(stream),2,4);assert.deepEqual(new Uint8Array(await r.arrayBuffer()),new Uint8Array([2,3,4]));
 });
+
+test('fast queries retain review checks without downloading the full catalog or process supplements',async()=>{
+ const calls=[];const o={id:1,source:1,sid:'23999901',name:'测试甲',award:'国家奖学金',year:'2024年',record_hash:'original',sha:'a'.repeat(64),path:'虚构获奖名单.pdf',evidence_code:1};
+ const fetcher=async url=>{const p=new URL(url).pathname;calls.push(p);let data;
+  if(p==='/archive/meta.json')data={fast_archive_version:2,awards:['国家奖学金'],years:['2024年']};
+  else if(p==='/archive/students-fast-v2.json.gz')data={colleges:['测试学院'],rows:[['23999901','测试甲',0,[0],0,[],[]]]};
+  else if(p==='/api/workflow/students')data={items:[]};
+  else if(p.startsWith('/archive/profiles-fast-v2/'))data={'23999901':{observations:[o],evidence_count:8}};
+  else if(p.startsWith('/api/workflow/student/'))data={observations:[{...o,record_hash:'changed'}],reviews:[{observation:1,decision:'已核实',record_hash:'original',source_sha:o.sha}]};
+  else throw Error('Unneeded download '+p);
+  return new Response(p.endsWith('.gz')?gzipSync(JSON.stringify(data)):JSON.stringify(data));
+ };
+ const c=createArchiveClient('https://isolated.test',fetcher),list=await c.query('/api/students');assert.equal(list.total,1);
+ const detail=await c.query('/api/student/23999901');assert.equal(detail.evidence_count,8);assert.equal(detail.candidates_loaded,false);assert.equal(detail.observations[0].evidence_code,1);assert.equal(detail.reviews[0].decision,'待核（原件或记录变更）');
+ assert.ok(!calls.some(p=>/sources|candidates|\/evidence\//.test(p)));
+});

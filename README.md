@@ -8,11 +8,14 @@ GitHub Pages 查询界面，配合独立的 Cloudflare 免费档案服务。无�
 
 默认只显示存在明确获奖名单、发放明细或年度资助台账依据的记录。前50%名单、资格与排名、名额测算、申请、推荐及单纯系统导入文件不计入获奖；结果公示单独待核。奖项必须能从具体文件、工作表或台账行中对应，不能由所在文件夹直接推断。过程资料保留在“显示全部档案”和学生档案的折叠区。标题判断属于资料筛选，正式证明仍需人工核验身份、奖项及年度。
 
+筛选还读取工作表实际标题和表头：申请审批、推荐名单及仅有推荐等级或推荐奖项的年度汇总仍作为过程资料；“最终”文件名不能覆盖申请审批属性。“不通过”等否定结果、模板示例、其他学校获奖名单、提名奖误归正式奖章等均从默认获奖结果排除。公示期结束的标题也需要进一步确认，不能直接升级为已确认获奖。
+
 ## 免费部署结构
 
 - `docs/`：实际网页，由 GitHub Actions 发布至 GitHub Pages。
 - `free/worker.mjs`：原件下载、核验与证明记录接口。
 - `docs/static/archive-client.mjs`：浏览器按需读取分片索引并检索档案。
+- `scripts/build-fast-archive.py`：构建约 0.46 MB 的默认学生检索索引及包含来源信息的学生分片，减少打开档案时的网络请求；同名候选和原文命中位置按需加载。
 - `docs/static/connection.mjs`：检测配置的数据入口，选择可访问的入口；连接失败显示可重试提示，不自动重放写入操作。
 - `gateway/`：可选的免费 Pages 数据入口，通过同一 Cloudflare 账号内的服务绑定连接原档案服务，不复制学生数据。需单独部署并通过目标网络验证后才能加入网页配置。
 - Workers Static Assets：存放只读索引和分片原件。原文件字节不变，下载后可验证 SHA-256。
@@ -40,7 +43,7 @@ python -m unittest discover -s tests -p test_award_policy.py
 2. 设置 `ARCHIVE_WEB_ORIGIN` 为自己的 `https://用户名.github.io`，运行 `python scripts/build-free-archive.py`。分片输出在被忽略的 `work/free-assets/`，可断点继续；更换快照应使用新的构建目录，避免旧状态跳过更新。
 3. 通过官方 Wrangler 登录，创建免费 D1，并运行 `wrangler d1 migrations apply scholarship-workflow --remote --config free/wrangler.jsonc`。
 4. 用 `wrangler secret put ARCHIVE_SESSION_KEY --config free/wrangler.jsonc` 设置随机会话签名密钥。不要把密钥写入仓库。
-5. `wrangler deploy --config free/wrangler.jsonc` 上传分片并发布接口。把实际返回的服务地址填入 `docs/config.js` 的 `apiBaseUrl`。
+5. 运行 `python scripts/build-award-policy.py` 和 `python scripts/build-fast-archive.py` 更新资料筛选和加速分片；再运行 `wrangler deploy --config free/wrangler.jsonc` 上传分片并发布接口。把实际返回的服务地址填入 `docs/config.js` 的 `apiBaseUrl`。
 6. GitHub 仓库 Pages 的 Source 选择 GitHub Actions。推送 `main` 后自动发布 `docs/`；PDF.js 5.4.149 从官方 npm 恢复，并验证固定 SHA-512。
 
 PDF.js 使用 Apache-2.0 许可，部署中保留其 LICENSE。核验及出具数据保存在 D1；日常备份应包含 D1 和本机原始档案。新增材料需要重新整理、构建和部署，不会自动扫描本机新增文件。

@@ -24,4 +24,16 @@ class EvidencePolicy(unittest.TestCase):
   self.assertEqual(classify(self.row(stage='未获奖/放弃'),{'path':'国家奖学金获奖名单.xlsx'}),5)
  def test_directory_name_does_not_assign_its_prize_to_another_honor(self):
   self.assertEqual(classify(self.row(award='比亚迪奖学金',locator='优秀研究生 · 第3行'),{'path':'比亚迪奖学金/2025-2026学年各类资助明细汇总表.xlsx'}),7)
+ def test_final_filename_cannot_override_application_decisions(self):
+  source={'path':'志愿公益奖学金汇总表(最终).xlsx','sheet_headers':{'Sheet1':['姓名 | 学号 | 奖学金名称 | 申请理由 | 申请是否通过']}}
+  self.assertEqual(classify(self.row(award='志愿公益奖学金',excerpt='虚构姓名 | 12345678 | 志愿公益奖学金 | 通过'),source),3)
+  self.assertEqual(classify(self.row(award='志愿公益奖学金',excerpt='虚构姓名 | 不通过'),source),5)
+ def test_example_and_recommendation_columns_are_not_final(self):
+  self.assertEqual(classify(self.row(excerpt='例 | 虚构学院 | 12345678 | 张三 | 国家奖学金'),{'path':'国家奖学金汇总表.xlsx'}),3)
+  self.assertEqual(classify(self.row(),{'path':'2025奖学金汇总表.xlsx','sheet_headers':{'Sheet1':['学号 | 姓名 | 推荐获奖等级 | 获奖金额']}}),3)
+ def test_nomination_is_not_the_medal(self):
+  self.assertEqual(classify(self.row(award='沈元奖章',excerpt='虚构姓名 | 沈元奖章提名奖'),{'path':'沈元奖章、提名奖获奖名单.xlsx'}),7)
+ def test_other_university_is_reference(self):
+  source={'path':'国家奖学金获奖名单.xlsx','sheet_headers':{'Sheet1':['序号 | 姓名 | 学校 | 学号']}}
+  self.assertEqual(classify(self.row(excerpt='1 | 虚构姓名 | 虚构其他大学 | 12345678'),source),8)
 if __name__=='__main__':unittest.main()

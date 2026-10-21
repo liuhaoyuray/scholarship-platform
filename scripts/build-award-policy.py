@@ -1,10 +1,12 @@
 from pathlib import Path
 import sqlite3,json,gzip,os,collections
-from award_policy import classify,LABELS
+from award_policy import classify,LABELS,attach_headers
 root=Path(__file__).resolve().parents[1];out=root/'work/free-assets/archive'
 db=Path(os.environ.get('ARCHIVE_DB',str(root/'work/cloud-snapshot.sqlite3')))
 c=sqlite3.connect(db.as_uri()+'?mode=ro',uri=True);c.row_factory=sqlite3.Row
 sources={r['id']:dict(r) for r in c.execute('SELECT id,path FROM sources')}
+candidate_ids={r['source'] for row in c.execute('SELECT * FROM observations') if classify((r:=dict(row)),sources[r['source']])==1}
+attach_headers(c,sources,candidate_ids)
 meta=json.loads((out/'meta.json').read_bytes());awards=meta['awards'];years=meta['years'];ai={a:i for i,a in enumerate(awards)};yi={y:i for i,y in enumerate(years)}
 codes=bytearray(c.execute('SELECT max(id) FROM observations').fetchone()[0]+1);counts=collections.Counter();pairs=collections.defaultdict(set);source_counts=collections.defaultdict(collections.Counter);old_positive=collections.Counter();examples=collections.defaultdict(list)
 for row in c.execute('SELECT * FROM observations ORDER BY id'):
