@@ -13,6 +13,8 @@ GitHub Pages 查询界面，配合独立的 Cloudflare 免费档案服务。无�
 - `docs/`：实际网页，由 GitHub Actions 发布至 GitHub Pages。
 - `free/worker.mjs`：原件下载、核验与证明记录接口。
 - `docs/static/archive-client.mjs`：浏览器按需读取分片索引并检索档案。
+- `docs/static/connection.mjs`：检测配置的数据入口，选择可访问的入口；连接失败显示可重试提示，不自动重放写入操作。
+- `gateway/`：可选的免费 Pages 数据入口，通过同一 Cloudflare 账号内的服务绑定连接原档案服务，不复制学生数据。需单独部署并通过目标网络验证后才能加入网页配置。
 - Workers Static Assets：存放只读索引和分片原件。原文件字节不变，下载后可验证 SHA-256。
 - 小型 D1：仅存人工登记、核验及证明记录，不导入全量档案数据库。
 - Word 和 ZIP 在浏览器生成，不需要服务器存放重复的证明文件。
@@ -42,5 +44,11 @@ python -m unittest discover -s tests -p test_award_policy.py
 6. GitHub 仓库 Pages 的 Source 选择 GitHub Actions。推送 `main` 后自动发布 `docs/`；PDF.js 5.4.149 从官方 npm 恢复，并验证固定 SHA-512。
 
 PDF.js 使用 Apache-2.0 许可，部署中保留其 LICENSE。核验及出具数据保存在 D1；日常备份应包含 D1 和本机原始档案。新增材料需要重新整理、构建和部署，不会自动扫描本机新增文件。
+
+### 跨网络连接
+
+网页能打开并不表示数据域名可访问。若出现连接错误，先比较 GitHub 网页与 `/archive/meta.json` 的网络连接，不能以本机已有代理时的测试代替其他电脑的直连验证。
+
+备用入口部署：给官方 Wrangler 增加 `pages:write` 权限，创建免费 Pages 项目 `scholarship-archive-gateway`，运行 `wrangler pages deploy --config gateway/wrangler.jsonc --project-name scholarship-archive-gateway --branch main`。确认服务绑定、原件范围下载及目标网络访问正常后，将返回的正式 `pages.dev` 地址和原入口一起填入 `docs/config.js` 的 `apiBaseUrls` 数组，保留 `apiBaseUrl` 为数组内的一个地址。Pages Functions 仍受免费 Workers 请求额度限制；不同网络的可达性需要实测，不保证所有地区畅通。
 
 参考：[Cloudflare 免费额度](https://developers.cloudflare.com/workers/platform/limits/)、[静态文件计费](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)、[GitHub Pages](https://docs.github.com/en/pages)。
