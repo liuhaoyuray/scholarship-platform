@@ -15,6 +15,7 @@ export async function asset(request,env,path,range){
 }
 async function source(request,env,id){return (await asset(request,env,`/archive/sources/${id}.json`)).json()}
 async function record(request,env,kind,id){
+ kind+='-v2';
  check(Number.isSafeInteger(id)&&id>0,'无效记录编号');
  const offset=id%65536*12;
  const index=await asset(request,env,`/archive/${kind}/index-${String(Math.floor(id/65536)).padStart(4,'0')}.bin`,`bytes=${offset}-${offset+11}`);
@@ -74,8 +75,8 @@ async function exportPayload(request,env){
 async function route(request,env){
  const path=new URL(request.url).pathname;
  await authorize(request,env);
- const rangePath=/^\/api\/range\/text\/(\d{4}\.bin)$/.exec(path);
- if(rangePath){const m=/^bytes=(\d+)-(\d+)$/.exec(request.headers.get('Range')||'');check(m&&Number(m[1])<=Number(m[2])&&Number(m[2])<20*1024*1024&&Number(m[2])-Number(m[1])<256*1024,'档案读取范围无效',416);const r=await asset(request,env,'/archive/text/'+rangePath[1],request.headers.get('Range')),bytes=await r.arrayBuffer();check(bytes.byteLength===Number(m[2])-Number(m[1])+1,'原文片段读取未完成，请重试',503);const headers=new Headers(r.headers);headers.set('Cache-Control','no-store');headers.set('Content-Length',String(bytes.byteLength));return new Response(bytes,{status:206,headers})}
+ const rangePath=/^\/api\/range\/(text(?:-v2)?)\/(\d{4}\.bin)$/.exec(path);
+ if(rangePath){const m=/^bytes=(\d+)-(\d+)$/.exec(request.headers.get('Range')||'');check(m&&Number(m[1])<=Number(m[2])&&Number(m[2])<20*1024*1024&&Number(m[2])-Number(m[1])<256*1024,'档案读取范围无效',416);const r=await asset(request,env,'/archive/'+rangePath[1]+'/'+rangePath[2],request.headers.get('Range')),bytes=await r.arrayBuffer();check(bytes.byteLength===Number(m[2])-Number(m[1])+1,'原文片段读取未完成，请重试',503);const headers=new Headers(r.headers);headers.set('Cache-Control','no-store');headers.set('Content-Length',String(bytes.byteLength));return new Response(bytes,{status:206,headers})}
  if(path==='/api/workflow/stats')return json({reviews:(await first(env.DB,'SELECT count(*) n FROM reviews')).n,issued:(await first(env.DB,'SELECT count(*) n FROM issuances')).n,token:await mintToken(env.ARCHIVE_SESSION_KEY)});
  if(path==='/api/workflow/students')return json({items:await all(env.DB,"SELECT sid,name,college,award,year FROM observations WHERE id<0 UNION SELECT sid,name,college,award,year FROM reviews WHERE id IN (SELECT max(id) FROM reviews GROUP BY observation)")});
  const student=/^\/api\/workflow\/student\/([^/]+)$/.exec(path);

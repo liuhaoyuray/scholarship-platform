@@ -23,11 +23,11 @@ def varints(ids):
  return base64.b64encode(result).decode()
 class Records:
  def __init__(self,name,maximum):
-  self.name=name;self.index=array.array('I',[0])*((maximum+1)*3);self.block=0;self.offset=0;self.file=None
-  (OUT/f'archive/{name}').mkdir(parents=True,exist_ok=True)
+  self.name=name+'-v2';self.index=array.array('I',[0])*((maximum+1)*3);self.block=0;self.offset=0;self.file=None
+  (OUT/f'archive/{self.name}').mkdir(parents=True,exist_ok=True)
  def add(self,ident,value):
   data=dumps(value)+b'\n'
-  if self.file is None or self.offset+len(data)>LIMIT:
+  if self.file is None or self.offset+len(data)>512*1024:
    if self.file:self.file.close();self.block+=1
    self.file=open(OUT/f'archive/{self.name}/{self.block:04d}.bin','wb');self.offset=0
   self.index[ident*3:ident*3+3]=array.array('I',[self.block,self.offset,len(data)])

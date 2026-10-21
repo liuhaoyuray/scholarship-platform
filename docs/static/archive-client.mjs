@@ -23,12 +23,12 @@ export function createArchiveClient(base,fetcher=fetch,assetBase=base){
  async function sources(){const list=await json('/archive/sources.json.gz');if(!sourceById.size)for(const s of list)sourceById.set(s.id,s);return list}
  async function source(id){await sources();const s=sourceById.get(Number(id));if(!s)throw Error('找不到原始材料');return s}
  async function bucket(value){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(value)));return new Uint8Array(bytes)[0].toString(16).padStart(2,'0')}
- async function index(){return cached('text-index',async()=>{const r=await response('/archive/text-index.bin.gz');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();return new Uint32Array(bytes)})}
+ async function index(){return cached('text-index',async()=>{const r=await response('/archive/text-v2-index.bin.gz');const bytes=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();return new Uint32Array(bytes)})}
  async function rows(ids){
   if(!ids.length)return [];
   const idx=await index(),groups=[];
   for(const id of ids){const [block,start,length]=idx.subarray(id*3,id*3+3);if(!length)continue;let group=groups.at(-1);if(!group||group.block!==block||start<group.start||start>group.end+1024||start+length-group.start>256*1024){group={block,start,end:start+length,items:[]};groups.push(group)}else group.end=Math.max(group.end,start+length);group.items.push({id,start,length})}
-  const result=await pool(groups,async g=>{const r=await response(`/api/range/text/${String(g.block).padStart(4,'0')}.bin`,{headers:{Range:`bytes=${g.start}-${g.end-1}`}});if(r.status!==206)throw Error('原文读取服务尚未就绪');const data=new Uint8Array(await r.arrayBuffer());return g.items.map(x=>JSON.parse(decoder.decode(data.subarray(x.start-g.start,x.start-g.start+x.length))))});
+  const result=await pool(groups,async g=>{const r=await response(`/api/range/text-v2/${String(g.block).padStart(4,'0')}.bin`,{headers:{Range:`bytes=${g.start}-${g.end-1}`}});if(r.status!==206)throw Error('原文读取服务尚未就绪');const data=new Uint8Array(await r.arrayBuffer());return g.items.map(x=>JSON.parse(decoder.decode(data.subarray(x.start-g.start,x.start-g.start+x.length))))});
   const found=new Map(result.flat().map(r=>[r.id,r]));return ids.map(id=>found.get(id)).filter(Boolean);
  }
  async function search(q,offset=0,limit=60){
