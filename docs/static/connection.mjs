@@ -1,4 +1,4 @@
-export function createConnection(bases,fetcher=fetch,{probeTimeout=20000}={}){
+export function createConnection(bases,fetcher=fetch,{probeTimeout=30000}={}){
  const endpoints=[...new Set(bases.filter(Boolean).map(x=>String(x).replace(/\/$/,'')))];
  let active=endpoints[0]||'',ready=false,connecting;
  function unavailable(write=false){const e=Error(write?'连接中断，操作结果尚未确认。请刷新核验记录后再试，避免重复提交。':'暂时无法连接档案库。请点击“重新连接”重试，或换一个网络后再试。');e.code='ARCHIVE_CONNECTION';return e}
