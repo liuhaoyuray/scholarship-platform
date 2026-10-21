@@ -153,4 +153,6 @@ meta={
  'revision':hashlib.sha256((str(DB.stat().st_mtime_ns)+str(DB.stat().st_size)).encode()).hexdigest(),
  'asset_files':len(paths)+1,'asset_bytes':sum(p.stat().st_size for p in paths)
 }
-write(Path('archive/meta.json'),meta);log(stage='complete',files=meta['asset_files'],bytes=meta['asset_bytes'])
+write(Path('archive/meta.json'),meta)
+subprocess.run([sys.executable,str(ROOT/'scripts/build-award-policy.py')],check=True)
+log(stage='complete',files=meta['asset_files'],bytes=meta['asset_bytes'])

@@ -29,6 +29,8 @@ jobs:
           cp "$RUNNER_TEMP/pdfjs/package/build/pdf.worker.min.mjs" docs/static/pdfjs/
           cp -r "$RUNNER_TEMP/pdfjs/package/cmaps" "$RUNNER_TEMP/pdfjs/package/standard_fonts" "$RUNNER_TEMP/pdfjs/package/wasm" docs/static/pdfjs/
           cp "$RUNNER_TEMP/pdfjs/package/LICENSE" docs/static/pdfjs/
+      - name: Version webpage assets and module imports
+        run: python scripts/version-pages.py "$GITHUB_SHA"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

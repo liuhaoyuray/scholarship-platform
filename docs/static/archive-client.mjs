@@ -11,14 +11,18 @@ export function createArchiveClient(base,fetcher=fetch,assetBase=base){
  async function json(path){return cached(path,async()=>{const r=await response(path),bytes=new Uint8Array(await r.arrayBuffer());let data=bytes;if(bytes[0]===31&&bytes[1]===139)data=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());return JSON.parse(decoder.decode(data))})}
  const meta=()=>json('/archive/meta.json');
  const students=()=>json('/archive/students.json.gz');
+ const policy=()=>json('/archive/award-policy-v1.json.gz');
+ const awardPairs=()=>json('/archive/award-students-v1.json.gz');
+ const awardCodes=()=>cached('award-codes',async()=>{const r=await response('/archive/award-status-v1.bin.gz');return new Uint8Array(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer())});
  async function mergedStudents(){
-  const [list,workflow]=await Promise.all([students(),response('/api/workflow/students').then(r=>r.json())]);
-  const merged=new Map(list.map(s=>[s.sid,{...s,aliases:[...s.aliases],colleges:[...s.colleges],extraPairs:[]}]));
-  for(const row of workflow.items){let s=merged.get(row.sid);if(!s){s={sid:row.sid,name:row.name,college:row.college,aliases:[],colleges:[],combos:[],awards:0,extraPairs:[]};merged.set(s.sid,s)}
+  const [list,workflow,pairs]=await Promise.all([students(),response('/api/workflow/students').then(r=>r.json()),awardPairs()]);
+  const merged=new Map(list.map(s=>[s.sid,{...s,aliases:[...s.aliases],colleges:[...s.colleges],strictCombos:pairs[s.sid]||[],awards:(pairs[s.sid]||[]).length,extraPairs:[],verifiedPairs:[]}]));
+  for(const row of workflow.items){let s=merged.get(row.sid);if(!s){s={sid:row.sid,name:row.name,college:row.college,aliases:[],colleges:[],combos:[],strictCombos:[],awards:0,extraPairs:[],verifiedPairs:[]};merged.set(s.sid,s)}
    if(row.name&&!s.aliases.includes(row.name))s.aliases.push(row.name);if(row.college&&!s.colleges.includes(row.college))s.colleges.push(row.college);
    if(!s.extraPairs.some(p=>p[0]===row.award&&p[1]===row.year))s.extraPairs.push([row.award,row.year]);
+   if(row.decision==='已核实'&&!s.verifiedPairs.some(p=>p[0]===row.award&&p[1]===row.year))s.verifiedPairs.push([row.award,row.year]);
   }
-  return [...merged.values()];
+  const m=await meta();return [...merged.values()].map(s=>({...s,awards:new Set([...s.strictCombos.map(code=>JSON.stringify([m.awards[code%m.awards.length],m.years[Math.floor(code/m.awards.length)]])),...s.verifiedPairs.map(p=>JSON.stringify(p))]).size}));
  }
  async function sources(){const list=await json('/archive/sources.json.gz');if(!sourceById.size)for(const s of list)sourceById.set(s.id,s);return list}
  async function source(id){await sources();const s=sourceById.get(Number(id));if(!s)throw Error('找不到原始材料');return s}
@@ -43,26 +47,28 @@ export function createArchiveClient(base,fetcher=fetch,assetBase=base){
  }
  async function query(path){
   const u=new URL(path,'https://archive.invalid'),p=u.pathname,offset=Math.max(0,Number(u.searchParams.get('offset'))||0);
-  if(p==='/api/stats'){const [m,r]=await Promise.all([meta(),response('/api/workflow/stats').then(r=>r.json())]);return {...m,...r}}
+  if(p==='/api/stats'){const [m,r,rule]=await Promise.all([meta(),response('/api/workflow/stats').then(r=>r.json()),policy()]);return {...m,...r,archive_students:m.students,students:rule.award_students,evidence_records:rule.award_records,policy_counts:rule.counts}}
   if(p==='/api/students'){
    const [list,m]=await Promise.all([mergedStudents(),meta()]),q=(u.searchParams.get('q')||'').replace(/\s+/g,'').toLowerCase(),college=(u.searchParams.get('college')||'').trim().toLowerCase(),award=u.searchParams.get('award'),year=u.searchParams.get('year');
-   const matches=list.filter(s=>(!q||[s.sid,s.name,...s.aliases].some(x=>String(x).toLowerCase().includes(q)))&&(!college||[s.college,...s.colleges].some(x=>String(x).toLowerCase().includes(college)))&&(!award&&!year||s.combos.some(code=>(!award||m.awards[code%m.awards.length]===award)&&(!year||m.years[Math.floor(code/m.awards.length)]===year))||s.extraPairs.some(p=>(!award||p[0]===award)&&(!year||p[1]===year))));
+   const includeProcess=u.searchParams.get('scope')==='all';
+   const matches=list.filter(s=>{const combos=includeProcess?s.combos:s.strictCombos,pairs=includeProcess?s.extraPairs:s.verifiedPairs;return (includeProcess||combos.length||pairs.length)&&(!q||[s.sid,s.name,...s.aliases].some(x=>String(x).toLowerCase().includes(q)))&&(!college||[s.college,...s.colleges].some(x=>String(x).toLowerCase().includes(college)))&&(!award&&!year||combos.some(code=>(!award||m.awards[code%m.awards.length]===award)&&(!year||m.years[Math.floor(code/m.awards.length)]===year))||pairs.some(p=>(!award||p[0]===award)&&(!year||p[1]===year)))});
    return {total:matches.length,items:matches.slice(offset,offset+50),offset};
   }
   const student=/^\/api\/student\/([^/]+)$/.exec(p);
   if(student){
    const sid=decodeURIComponent(student[1]),s=(await mergedStudents()).find(s=>s.sid===sid);if(!s)throw Error('找不到学生档案');
-   const [data,candidate,evidence,workflow]=await Promise.all([json('/archive/profiles/'+await bucket(sid)+'.json.gz'),json('/archive/candidates/'+(parseInt(await bucket(s.name),16)%128).toString(16).padStart(2,'0')+'.json.gz'),json('/archive/evidence/'+await bucket(sid)+'.json.gz'),response('/api/workflow/student/'+encodeURIComponent(sid)).then(r=>r.json())]);
-   await sources();const enrich=o=>({...o,...Object.fromEntries(['path','sha','ext','state'].map(k=>[k,sourceById.get(o.source)?.[k]]))});
+   const [data,candidate,evidence,workflow,codes,rule]=await Promise.all([json('/archive/profiles/'+await bucket(sid)+'.json.gz'),json('/archive/candidates/'+(parseInt(await bucket(s.name),16)%128).toString(16).padStart(2,'0')+'.json.gz'),json('/archive/evidence/'+await bucket(sid)+'.json.gz'),response('/api/workflow/student/'+encodeURIComponent(sid)).then(r=>r.json()),awardCodes(),policy()]);
+   await sources();const enrich=o=>({...o,...Object.fromEntries(['path','sha','ext','state'].map(k=>[k,sourceById.get(o.source)?.[k]])),evidence_code:codes[o.id]||6,evidence_label:rule.labels[codes[o.id]||6]});
    const byId=new Map([...(data[sid]||[]).map(enrich),...(workflow.observations||[]).map(enrich)].map(o=>[o.id,o])),observations=[...byId.values()];
    const reviews=workflow.reviews||[];for(const r of reviews){const o=byId.get(r.observation);if(r.decision==='已核实'&&(!o||r.record_hash!==o.record_hash||r.source_sha!==o.sha))r.decision='待核（原件或记录变更）'}
-   const hits=(await rows(decodeIds(evidence[sid]).slice(0,150))).map(r=>({source:r.source,locator:r.locator,excerpt:r.text.slice(Math.max(0,r.text.indexOf(sid)-80),Math.max(0,r.text.indexOf(sid)-80)+550),method:r.method,path:sourceById.get(r.source)?.path||'',ext:sourceById.get(r.source)?.ext||''}));
-   return {student:s,observations,reviews,candidates:(candidate[s.name]||[]).map(enrich),evidence:hits};
+   return {student:s,observations,reviews,candidates:(candidate[s.name]||[]).map(enrich),evidence:[],evidence_count:decodeIds(evidence[sid]).length};
   }
+  const evidenceRequest=/^\/api\/evidence\/([^/]+)$/.exec(p);
+  if(evidenceRequest){const sid=decodeURIComponent(evidenceRequest[1]),data=await json('/archive/evidence/'+await bucket(sid)+'.json.gz');await sources();return {items:(await rows(decodeIds(data[sid]).slice(0,150))).map(r=>({source:r.source,locator:r.locator,excerpt:r.text.slice(Math.max(0,r.text.indexOf(sid)-80),Math.max(0,r.text.indexOf(sid)-80)+550),method:r.method,path:sourceById.get(r.source)?.path||'',ext:sourceById.get(r.source)?.ext||''}))}}
   if(p==='/api/files'){const q=(u.searchParams.get('q')||'').toLowerCase(),state=u.searchParams.get('state');const matches=(await sources()).filter(s=>(!q||s.path.toLowerCase().includes(q))&&(!state||s.state===state)).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);return {total:matches.length,items:matches.slice(offset,offset+60),offset}}
   if(p==='/api/search')return {items:await search(u.searchParams.get('q'),offset),offset};
   const material=/^\/api\/source\/(\d+)$/.exec(p);
-  if(material){const s=await source(material[1]),map=await json('/archive/source-chunks/'+(s.id%128).toString(16).padStart(2,'0')+'.json.gz'),locators=map[s.id]||[],locator=u.searchParams.get('locator'),chosen=locators.slice(0,120);const target=locator?locators.find(x=>x[1]===locator):null;if(target&&!chosen.some(x=>x[0]===target[0]))chosen.unshift(target);const chunks=await rows(chosen.map(x=>x[0]));return {source:{...s,message:[s.message,locators.length>120?'已展示前120处原文；其余内容可通过全文检索定位。':''].filter(Boolean).join('；')},chunks}}
+  if(material){const s=await source(material[1]),map=await json('/archive/source-chunks/'+(s.id%128).toString(16).padStart(2,'0')+'.json.gz'),locators=map[s.id]||[],locator=u.searchParams.get('locator'),target=locator?locators.find(x=>x[1]===locator):null,chosen=target?[target]:locators.slice(0,30);const chunks=await rows(chosen.map(x=>x[0]));return {source:{...s,message:[s.message,locators.length>chosen.length?'已展示选中位置或前30处原文；可检索其他位置或下载完整原件。':''].filter(Boolean).join('；')},chunks}}
   return null;
  }
  return {query,search,rows,meta};
