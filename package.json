@@ -1,0 +1,8 @@
+{
+ "name":"scholarship-platform",
+ "private":true,
+ "type":"module",
+ "scripts":{"test":"node --test tests/*.test.mjs","dev:api":"wrangler dev --config free/wrangler.jsonc --port 8791","deploy:api":"wrangler deploy --config free/wrangler.jsonc"},
+ "devDependencies":{"wrangler":"4.92.0"},
+ "engines":{"node":">=22.13.0"}
+}

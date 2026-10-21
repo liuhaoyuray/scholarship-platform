@@ -1,0 +1,11 @@
+node_modules/
+work/
+.wrangler/
+.sites-runtime/
+.dev.vars*
+.env*
+*.sqlite3*
+__pycache__/
+*.pyc
+free/wrangler.jsonc
+docs/static/pdfjs/

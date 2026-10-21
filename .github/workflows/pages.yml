@@ -1,0 +1,38 @@
+name: Publish scholarship platform to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore pinned PDF viewer
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-5.4.149.tgz -o "$RUNNER_TEMP/pdfjs.tgz"
+          echo "5def3fd453091103d4552b62db90250e9c29526d9001598d3a914fd1221a85a3c838a04a20269e7dbce880b7707b2dd7186a1a3f82dbf70aa2c367bd26aa742c  $RUNNER_TEMP/pdfjs.tgz" | sha512sum --check
+          mkdir -p "$RUNNER_TEMP/pdfjs" docs/static/pdfjs
+          tar -xzf "$RUNNER_TEMP/pdfjs.tgz" -C "$RUNNER_TEMP/pdfjs"
+          cp "$RUNNER_TEMP/pdfjs/package/build/pdf.min.mjs" docs/static/pdfjs/
+          cp "$RUNNER_TEMP/pdfjs/package/build/pdf.worker.min.mjs" docs/static/pdfjs/
+          cp -r "$RUNNER_TEMP/pdfjs/package/cmaps" "$RUNNER_TEMP/pdfjs/package/standard_fonts" "$RUNNER_TEMP/pdfjs/package/wasm" docs/static/pdfjs/
+          cp "$RUNNER_TEMP/pdfjs/package/LICENSE" docs/static/pdfjs/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

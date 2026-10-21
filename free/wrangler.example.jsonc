@@ -1,0 +1,10 @@
+{
+  "name": "scholarship-archive-data",
+  "main": "worker.mjs",
+  "account_id": "YOUR_ACCOUNT_ID",
+  "compatibility_date": "2026-05-20",
+  "workers_dev": true,
+  "vars": {"ARCHIVE_WEB_ORIGIN": "https://YOUR_GITHUB_USERNAME.github.io"},
+  "assets": {"directory": "../work/free-assets", "binding": "ASSETS", "run_worker_first": ["/api/*"]},
+  "d1_databases": [{"binding": "DB", "database_name": "scholarship-workflow", "database_id": "YOUR_DATABASE_ID", "migrations_dir": "../backend/migrations"}]
+}
