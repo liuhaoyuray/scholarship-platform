@@ -49,6 +49,6 @@ PDF.js 使用 Apache-2.0 许可，部署中保留其 LICENSE。核验及出具�
 
 网页能打开并不表示数据域名可访问。若出现连接错误，先比较 GitHub 网页与 `/archive/meta.json` 的网络连接，不能以本机已有代理时的测试代替其他电脑的直连验证。
 
-备用入口部署：给官方 Wrangler 增加 `pages:write` 权限，创建免费 Pages 项目 `scholarship-archive-gateway`，运行 `wrangler pages deploy --config gateway/wrangler.jsonc --project-name scholarship-archive-gateway --branch main`。确认服务绑定、原件范围下载及目标网络访问正常后，将返回的正式 `pages.dev` 地址和原入口一起填入 `docs/config.js` 的 `apiBaseUrls` 数组，保留 `apiBaseUrl` 为数组内的一个地址。Pages Functions 仍受免费 Workers 请求额度限制；不同网络的可达性需要实测，不保证所有地区畅通。
+备用入口部署：给官方 Wrangler 增加 `pages:write` 权限，创建免费 Pages 项目 `scholarship-archive-gateway`，进入 `gateway/` 后运行 `wrangler pages deploy --project-name scholarship-archive-gateway --branch main`。确认服务绑定、原件范围下载及目标网络访问正常后，将返回的正式 `pages.dev` 地址和原入口一起填入 `docs/config.js` 的 `apiBaseUrls` 数组，保留 `apiBaseUrl` 为数组内的一个地址。Pages Functions 仍受免费 Workers 请求额度限制；不同网络的可达性需要实测，不保证所有地区畅通。
 
 参考：[Cloudflare 免费额度](https://developers.cloudflare.com/workers/platform/limits/)、[静态文件计费](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)、[GitHub Pages](https://docs.github.com/en/pages)。
