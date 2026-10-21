@@ -6,7 +6,7 @@ async function pool(items,fn,limit=6){const out=Array(items.length);let next=0;a
 export function createArchiveClient(base,fetcher=fetch,assetBase=base){
  const cache=new Map(),sourceById=new Map();
  const url=p=>(p.startsWith('/archive/')?assetBase:base).replace(/\/$/,'')+p;
- async function response(path,options){const r=await fetcher(url(path),options);if(!r.ok){let message='档案暂时无法读取，请稍后再试';try{message=(await r.json()).error||message}catch{}throw Error(message)}const range=new Headers(options?.headers).get('Range'),m=/^bytes=(\d+)-(\d+)$/.exec(range||'');return m&&r.status===200?sliceResponse(r,Number(m[1]),Number(m[2])):r}
+ async function response(path,options){const r=await fetcher(url(path),path.startsWith('/api/')?{...options,cache:'no-store'}:options);if(!r.ok){let message='档案暂时无法读取，请稍后再试';try{message=(await r.json()).error||message}catch{}throw Error(message)}const range=new Headers(options?.headers).get('Range'),m=/^bytes=(\d+)-(\d+)$/.exec(range||'');return m&&r.status===200?sliceResponse(r,Number(m[1]),Number(m[2])):r}
  function cached(key,load){if(!cache.has(key))cache.set(key,load().catch(e=>{cache.delete(key);throw e}));return cache.get(key)}
  async function json(path){return cached(path,async()=>{const r=await response(path),bytes=new Uint8Array(await r.arrayBuffer());let data=bytes;if(bytes[0]===31&&bytes[1]===139)data=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());return JSON.parse(decoder.decode(data))})}
  const meta=()=>json('/archive/meta.json');
