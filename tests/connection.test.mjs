@@ -24,3 +24,8 @@ test('failed writes are never replayed on a second endpoint',async()=>{
  const c=createConnection([a,b],async(url,opts)=>{if(url.endsWith('meta.json'))return meta();writes++;throw TypeError('Failed to fetch')});
  await assert.rejects(c.fetch(a+'/api/review',{method:'POST',body:'{}'}),e=>e.code==='ARCHIVE_CONNECTION'&&e.message.includes('结果尚未确认'));assert.equal(writes,1);
 });
+test('connection probe data is reused and the successful connection is not aborted',async()=>{
+ let calls=0,signal;
+ const c=createConnection([a],async(url,opts)=>{calls++;signal=opts.signal;return meta()});
+ const r=await c.fetch(a+'/archive/meta.json?v=review2');assert.equal((await r.json()).students,64334);assert.equal(calls,1);assert.equal(signal.aborted,false);
+});
